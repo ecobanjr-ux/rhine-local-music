@@ -1,0 +1,31 @@
+# 参考项目：只读参考，不入库
+references/
+
+# 工具内部状态
+.mimosa/
+
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+out/
+release/
+
+# 日志与临时文件
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# 本地环境配置
+.env
+.env.*
+
+# ZCode 工具文件与会话导出记录（不入库）
+.zcodeignore
+本地音乐播放器开发_*.md
+你是本项目*.md
+
+# 播放器运行时数据（曲库索引、封面与歌词缓存、启动锁与服务日志）——派生物，不入库
+music-data*/
+.qoder-credits/

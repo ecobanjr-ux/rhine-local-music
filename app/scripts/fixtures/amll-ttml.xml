@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:amll="http://www.example.com/ns/amll">
+  <head>
+    <metadata>
+      <ttm:agent type="person" xml:id="v1"/>
+      <amll:meta key="qqMusicId" value="97773"/>
+      <amll:meta key="musicName" value="SYNTHETIC TITLE"/>
+      <amll:meta key="artists" value="SYNTHETIC ARTIST"/>
+    </metadata>
+  </head>
+  <body>
+    <div>
+      <p begin="00:29.231" end="00:32.723" ttm:agent="v1" itunes:key="L1"><span begin="00:29.231" end="00:29.692">AL</span><span begin="00:29.692" end="00:30.057">PHA</span><span begin="00:30.057" end="00:31.329">BETA</span></p>
+      <p begin="00:32.723" end="00:36.100" ttm:agent="v1" itunes:key="L2"><span begin="00:32.723" end="00:33.200">GAMMA</span><span begin="00:33.200" end="00:36.100">DELTA</span></p>
+      <p begin="00:36.100" end="00:39.400" ttm:agent="v1" itunes:key="L3"><span begin="00:36.100" end="00:37.000">EPSILON</span><span begin="00:37.000" end="00:39.400">ZETA</span></p>
+      <p begin="00:39.400" end="00:42.000" ttm:agent="v1" itunes:key="L4"><span begin="00:39.400" end="00:42.000">ETA</span></p>
+    </div>
+  </body>
+</tt>

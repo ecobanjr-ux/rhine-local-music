@@ -1,0 +1,15 @@
+{
+  "name": "rhine-online-bridge-deps",
+  "private": true,
+  "version": "0.0.0",
+  "description": "在线后端封装包（网易云 / QQ / 酷狗）的独立依赖树。只被 scripts/bridge/online-bridge.mjs 这个子进程 require；不进 app/package.json 的安装面，也不进发行包（exe 不做在线开箱承诺，缺依赖时桥报可读原因，本地扫描浏览播放照常）。",
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "@neteasecloudmusicapienhanced/api": "4.40.1",
+    "@yakult-green-tea/qq-music-api": "3.1.2",
+    "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

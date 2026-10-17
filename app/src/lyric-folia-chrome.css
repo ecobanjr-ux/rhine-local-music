@@ -1,0 +1,651 @@
+/* 阶段 5.5 · Folia 独立视图外壳。
+   与 lyric-stage.css（歌词本身的排版与动效）分开：这个文件只管"视图外壳"——
+   隐藏 Rhine 面板、顶栏活动浮现、封面模糊背景、悬浮最小控制条。
+   定案变更：上轮把 .music-detail 压暗到 0.16 让歌词浮在上面，验收不通过——
+   沉浸视图里不该出现任何 Rhine 面板文字，所以整体隐藏，背景改用封面模糊底。 */
+
+/* —— 1. 隐藏 Rhine 面板与底部控件 ——
+   .music-detail 单独成块：它是定案点名的"整体隐藏"对象，值得一条自己的规则。 */
+#stage[data-display="folia"][data-mode="detail"] .music-detail {
+  display: none;
+}
+/* 常驻进度行**让位给悬浮控制条**——但只在控制条真的在的时候让，`:has()` 就是这条判据的落点。
+   两个理由，缺一个都会写错：
+   ① 旧规则只认 `[data-mode="detail"]`，而 **browse（档案层）按 L 进歌词面时 mode 还是 `archive`**
+      ⇒ 该让的时候没让，两条底部条叠在一起（截图 57 / F4）；
+   ② 反过来也不能无条件让：`controls` 在几条路径下会缺席（见 lyric-stage `ensureSurface` 的注释），
+      那时这条进度行就是歌词面里**唯一**的底部进度，让掉等于把控件弄没了。
+   ⇒ 判据写成"控制条在，进度行就让"，而不是"进了歌词面就让"。 */
+#stage[data-display="folia"]:has(#lyric-stage .folia-controls) .music-progress {
+  display: none;
+}
+#stage[data-display="folia"][data-mode="detail"] .album-callout,
+#stage[data-display="folia"][data-mode="detail"] .music-counter,
+#stage[data-display="folia"][data-mode="detail"] .album-stepper,
+#stage[data-display="folia"][data-mode="detail"] .music-bottomline {
+  display: none;
+}
+
+/* —— 2. 顶栏：默认隐藏，活动浮现，浮现态只留两组胶囊 ——
+   只过渡透明度、不做位移（定案要求"不跳动"）；隐藏态必须交还指针，
+   否则会点到看不见的按钮。data-chrome 由 music-app 里唯一的空闲计时器驱动。 */
+#stage[data-display="folia"][data-mode="detail"] .music-header {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+#stage[data-display="folia"][data-mode="detail"][data-chrome="on"] .music-header {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* 浮现出来也只许有模式与主题两组胶囊，Rhine 的功能项始终不显示。 */
+#stage[data-display="folia"][data-mode="detail"] .music-header .music-identity,
+#stage[data-display="folia"][data-mode="detail"] .music-header [data-action="library"],
+#stage[data-display="folia"][data-mode="detail"] .music-header [data-action="search"],
+#stage[data-display="folia"][data-mode="detail"] .music-header [data-action="settings"],
+#stage[data-display="folia"][data-mode="detail"] .music-header .minimal-transport {
+  display: none;
+}
+/* 品牌区一旦 display:none，原来的 space-between 会把仅剩的两组胶囊甩到左上角，
+   切模式时它们就跳位置。这里改成右对齐，让胶囊在两种模式下待在同一处。 */
+#stage[data-display="folia"][data-mode="detail"] .music-header {
+  justify-content: flex-end;
+}
+
+/* —— 3. 背景：当前专辑封面模糊放大 + 取色暗场 ——
+   外扩 8% 是必须的：filter: blur() 会把边缘像素与透明区混合，不外扩会露出一圈发黑的边。
+   封面是静态图，blur 由合成器算一次，不进逐帧路径；三维本来也已定格不出帧。 */
+.lyric-backdrop {
+  position: absolute;
+  inset: -8%;
+  z-index: -2;
+  background-image: var(--lyric-cover, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(56px) saturate(1.12);
+}
+.lyric-backdrop.no-cover {
+  /* 没有封面时回退到令牌派生渐变底，仍然不透明（不回看三维最后一帧）。 */
+  background-image: linear-gradient(
+    155deg,
+    var(--surface),
+    color-mix(in srgb, var(--accent) 22%, var(--page-bg)) 55%,
+    var(--page-bg)
+  );
+  filter: none;
+}
+/* 取色成功时 JS 写 data-tier，这里把"当前该用哪一档底色"折成一个 --folia-back 别名：
+   七个派生变量由 JS 整体摘除/写入，别名始终回退到 --page-bg，所以失败态不需要任何 JS 配合。 */
+.lyric-stage {
+  --folia-back: var(--folia-ink, var(--page-bg));
+}
+.lyric-stage[data-tier="tinted"] {
+  --folia-back: var(--folia-tinted, var(--page-bg));
+}
+.lyric-stage[data-tier="dusk"] {
+  --folia-back: var(--folia-dusk, var(--page-bg));
+}
+.lyric-stage[data-tier="rich"] {
+  --folia-back: var(--folia-rich, var(--page-bg));
+}
+.lyric-scrim {
+  /* 压一层底色把封面亮度拉平，大字歌词才有稳定对比度。
+     用单层 background-color 而不是三段渐变：background-color 是可插值属性，
+     换封面时色调是 600ms 渐变而不是跳变；渐变背景作为 image 只能整条离散替换。 */
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: color-mix(in srgb, var(--folia-back) 78%, transparent);
+  transition: background-color 600ms linear;
+}
+
+/* —— 4. 悬浮最小控制条 ——
+   舞台整体 pointer-events:none（不吃三维手势），所以控制条必须自己把指针接回来；
+   淡出后立刻交还指针，避免"看不见但还能点"。只过渡透明度，不做位移。 */
+.folia-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(760px, 88vw);
+  padding: 8px 14px;
+  border: 1px solid var(--folia-secondary, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--folia-back, var(--page-bg)) 45%, var(--panel));
+  backdrop-filter: blur(16px);
+  color: var(--folia-primary, var(--ink));
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  pointer-events: auto;
+  opacity: 1;
+  transition:
+    opacity 320ms ease,
+    background-color 600ms linear,
+    color 600ms linear;
+}
+.folia-controls.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.folia-btn {
+  flex: none;
+  padding: 5px 10px;
+  border: 1px solid var(--folia-secondary, var(--line));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--folia-primary, var(--ink));
+  font: inherit;
+  cursor: pointer;
+  transition: color 600ms linear, border-color 600ms linear;
+}
+.folia-btn[disabled] {
+  opacity: 0.35;
+  cursor: default;
+}
+.folia-btn-primary {
+  border-color: color-mix(in srgb, var(--folia-accent, var(--accent)) 60%, var(--line));
+  color: var(--folia-accent, var(--accent));
+}
+.folia-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--folia-secondary, var(--muted));
+  transition: color 600ms linear;
+}
+.folia-seek {
+  flex: 0 0 clamp(120px, 22vw, 260px);
+  height: 3px;
+  appearance: none;
+  background: var(--folia-secondary, var(--line));
+  border-radius: 999px;
+}
+.folia-seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--folia-accent, var(--accent));
+}
+/* 减弱动效下仍然只淡入淡出，不引入任何位移或缩放。 */
+.lyric-stage.is-reduced .folia-controls {
+  transition: opacity 200ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .folia-controls {
+    transition: opacity 200ms ease;
+  }
+}
+
+/* —— 5. Folia 岛容器（移植第一期）——
+   岛在三维 canvas 之上、#lyric-stage 之下：悬浮控制条是 #lyric-stage 的子节点，
+   必须压在岛上面（chrome 仍由宿主管，5.5 定案不变）。 */
+.folia-island {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  /* R179（缺陷一）：顶部那条导航带（header.music-header，z-index 6）压在岛上，而岛是 inset:0 全幅铺满
+     ⇒ 顶锚定的档（cappella 群唱的聊天列是 justify-start，第一个撞出来）会把内容顶到屏幕边，
+     中间那截正好被导航带盖住。高度由宿主运行时量（--folia-safe-top，见 folia-host/safe-area.ts），
+     因为那条带的 top 在三个断点上是 33/48/25px、高度还是内容撑的，写死数字就会在别的断点上翻车。
+     R180：**这一格收的是岛的背景，会把接缝一起收进来**（用户报：顶部一道硬接缝）⇒ 安全区挪到下面
+     那条内容层规则，岛自己的背景保持整窗。 */
+  /* R51：这里曾经是主题桥生效前的兜底（写 `var(--page-bg)`），岛根挂载后再由 JS 改成主题歌词底。
+     **R196（Q72 终章·用户终审）：垫层全部撤掉** —— 用户原话「无论歌词页还是封面墙，都要整个铺满屏幕；
+     控件和菜单显示在画面上面；不想看到任何分隔带，或最上面一条格格不入的黑带蓝带白带」。
+     ⇒ 岛容器与封面墙根节点的背景一律**透明**：画布/海报之下**露出什么就让它露**
+     （判据是"没有垫层"，不是"垫成同一个色"）。R51 当时那条"sonnet 这类透明背景模式白字压浅底"的问题
+     由**主题自己的页面底**接手（岛下面就是 `#stage` 的页面底，它跟着主题走）+
+     文字的 4.5 下限（R181/R185 的产物）兜着；实测见 run log 的 13 档 × 3 主题 × 两视图矩阵。 */
+  background: transparent;
+}
+/* R196：封面墙那一层也不许有自己的底（它是海报的容器，不是一块画布）。 */
+.folia-island .lattice-root {
+  background: transparent;
+}
+/* R197（Q72 收尾）：墙视图里把 3D 场景**隐掉**（不是加垫层，是别让它露出来）。
+   R196 把垫层撤掉之后，墙的缝隙/边缘露出来的就是墙背后的 3D 星空场景 —— 用户报的"最上面一条暗带"正是它。
+   墙自己不用 3D（它画在 pixi 里；`classic` 档那一屏**才**把 3D 当画面，那条路是 layout=classic，不受影响），
+   所以这一格用最便宜的处置：`visibility: hidden`（不动 z-index、不停渲染、可逆）。
+   替代方案（给 .lattice-root 加一层同族底）会把"垫层"又请回来，与用户的终审相悖 ⇒ 不选。 */
+#stage[data-display="folia"][data-folia-view="island"][data-folia-layout="lattice"] #three-scene {
+  visibility: hidden;
+}
+/* R180（R179 的观感副作用）：安全区收在**内容层**，不收岛自己。
+   一手量到的接缝成因：1280 宽下接缝上下两列 elementsFromPoint 只差 `section#folia-island` 这一层——
+   上面露出 #stage 的页面底 + 3D 场景，下面是岛那层平色 `rgb(200,201,239)` ⇒ 岛被收成
+   `inset: 71px 0 0 0` 之后，它的**底色**也跟着从 y=71 才开始画，屏幕上就多一条硬边。
+   上游的容器关系本来就是"背景整窗、视觉内容在 chrome 之下"⇒ 收内容、不收背景。
+   为什么收的是岛的第一层子节点：R179 已经量到 padding 管不到岛内 `absolute inset-0` 那类元素，
+   而这一层是 `position: relative`（真机量到 `div.w-full.h-full.flex`，rect [0,71,1280,729]）
+   ⇒ 它的绝对定位子元素按它的盒子算，它下来了子层才跟着下来。
+   特异性 (id + 伪类) 压得住 Tailwind 的 `h-full`，不需要 !important。 */
+#folia-island > :first-child {
+  margin-top: var(--folia-safe-top, 0px);
+  height: calc(100% - var(--folia-safe-top, 0px));
+  /* 必须自己裁：R179 那版是岛裁 `inset:71px 0 0 0` 顺带把溢出的弧顶裁掉了，拆层之后岛整窗，
+     不补这一格 pendolo 的弧顶行就会又画进导航带里（13 档矩阵复测到的）。
+     裁的是内容层，不是岛的背景 ⇒ 接缝不会回来（接缝的判据在下面那条矩阵检查里）。 */
+  overflow: hidden;
+}
+.folia-island[hidden] {
+  display: none;
+}
+/* R179：顶栏隐身的那一档里，安全区跟着一起撤 —— 不许白占 71px 把歌词往下推。
+   条件与上面 :32 那条隐藏规则同源（歌词面 + 详情 + 空闲计时器没唤醒顶栏）；
+   这两条选择器必须一起改，判据里钉着它们的条件一致。R180 之后撤的是内容层位移，
+   岛背景始终整窗 ⇒ 接缝与隐身两件事互不干扰。 */
+#stage[data-display="folia"][data-mode="detail"]:not([data-chrome="on"]) #folia-island > :first-child {
+  margin-top: 0;
+  height: 100%;
+}
+/* R184：这三档**放开安全区、铺满整窗**（用户拍板）。
+   成因（R180 已一手量清）：lumiere 的光场 / tempera 的色块构图 / still 的径向暗角，都是**画在内容层里**的
+   满幅背景 —— 内容层一旦让出安全区，它们的背景也跟着让 ⇒ 顶部露出岛的歌词底，屏幕上一道硬接缝
+   （39 格矩阵里就剩这 8 格：lumiere 昼 174 / 昏 62 / 夜 112、tempera 昼 320 / 昏 79 / 夜 12、still 昼 79 / 昏 54 / 夜 15）。
+   放开之后内容层回到 y=0、背景整幅 ⇒ 接缝消除。
+   为什么放开安全区不撞带：R179 已一手量到——这三档的内容**没有顶锚定的 DOM 文字**
+   （lumiere/tempera 是画布档、still 的歌词居中 `justify-center`），压在导航带上的只有画布 / `inset-0` 背景层，
+   而"导航带压在背景上"本就是设计如此（R179 定性：其余 6 档的相交全是这一类，不算缺陷）。
+   ⇒ 13 档 × 顶栏可见的"撞带"矩阵复测仍为 0（见 run log §三）。按档点名是**特例放行**、不是避让规则按档生效：
+   避让（R179/R180 那条）依旧对所有档生效，这里只是把这三档从避让里摘出去。 */
+#stage[data-display="folia"][data-mode="detail"][data-folia-mode="lumiere"] #folia-island > :first-child,
+#stage[data-display="folia"][data-mode="detail"][data-folia-mode="tempera"] #folia-island > :first-child,
+#stage[data-display="folia"][data-mode="detail"][data-folia-mode="still"] #folia-island > :first-child {
+  margin-top: 0;
+  height: 100%;
+}
+
+/* —— 6. R193 · 顶部横带（**用户翻案**：R189 那两条渐隐全部撤除）——
+   用户原话：「不接受有色带，要把歌词场景给覆盖上去，无论哪一种场景都不接受有色带，要类似于刚开始那样。」
+
+   R189 的做法是"盖一层页面色的渐隐"（那两条条带令牌分别给三档共用与时计单用），
+   撤除的理由写在这里免得下一个人又把它加回来：**盖住本身就等于造一条带** ——
+   顶端是页面色、往下渐到画面，那条渐变的坡度就是一条可见的横带（暖昼/黄昏尤其明显），
+   而且它把画面顶上那一截（绘光的画框顶边、蛋彩的构图）真的盖掉了。
+   用户要的是"画面从 y=0 就是场景本身"，所以这一格的做法改成**让场景真的铺满**：
+   三档自绘底的取色入口改从页面底起步（`--folia-back`，见 `folia-port-rewrite-log.md` R193），
+   时计的内容层回到 y=0（见下）。**这里不再有任何遮罩**。
+   判据也从 R189 的"跳变中位数 ≤ 10"升级为**逐行相邻色差 > 2 即违例**（13 档 × 3 主题逐格 0 违例）。 */
+/* R193 ③（时计）：R189 给它留了 71px 安全区（避让导航带里的弧线文字），代价是顶上那一截是岛底平色、
+   往下紧接着半透明钟盘 ⇒ 接得突兀。R189 用"盖一条渐隐"治它，本批同样撤掉。
+   改法（用户给的定向）：**内容层从 y=0 起排**，弧线文字不许被裁 ⇒ 收口在"避让"那一格：
+   它现在跟放开安全区的三档同一条规则（`margin-top: 0; height: 100%`，见下面 R184 那一段），
+   而 `#folia-island > :first-child` 的 `overflow: hidden` 也一并放开（不然弧顶行会被裁）。
+   导航带压在画上这件事本身就是设计（R179 已定性：其余 6 档的相交全是这一类，不算缺陷），
+   钟盘顶部的过渡交给**场景自己的渐变**（它的 `showCenterGradient`），不引入任何页面色带。 */
+#stage[data-display="folia"][data-mode="detail"][data-folia-layout="classic"][data-folia-mode="pendolo"] #folia-island > :first-child {
+  margin-top: 0;
+  height: 100%;
+  overflow: visible;
+}
+/* —— 7. R195（Q72）· 歌词面里顶部 chrome 不自带底色 ——
+   用户拍板：菜单**浮在歌词背景上**。两处底色的来源（都是一手读码找到的）：
+   ① `.mode-switch`（演出/歌词那颗胶囊容器）自带 `background: var(--veil)`；
+   ② `.music-vignette::before/::after` 是"导航行 + 底栏"那两条 `--veil` 渐变（深夜那条是 rgba(5,13,25,…) 蓝黑）。
+   两个黑色相不同 ⇒ 导航行就显成一条颜色不同的带（**底色本身就是色带的来源**，所以修法是去底、不是调淡）。
+   只在歌词面生效：archive 那几屏的观感一个字不动。
+   控件的可点性原样保留；**按下态保留实底**（`aria-pressed="true"` 的胶囊照旧吃实色，那是"当前在哪一档"的唯一标识）。 */
+#stage[data-display="folia"][data-folia-view="island"] .mode-switch {
+  background: transparent;
+}
+#stage[data-display="folia"][data-folia-view="island"] .music-vignette {
+  display: none;
+}
+/* 去掉底之后，字与控件只能靠**自己**站住。三步，前一步不够才走下一步（用户给的优先级）：
+   ① **字色用主题主色** `--ink`（宿主三主题里 `--ink`/`--page-bg` 就是"主文字 / 页面底"这一对）；
+   ② **描边/阴影**色取 `--page-bg`（与字色相反的那一端 → 不论底下是亮画还是暗画，笔画都被一圈同族色托住）；
+   ③ ①② 仍救不回来的那一档**按控件**给一层低透明度同族底（**不是**恢复 `.music-vignette`/`--veil` 那种
+     整条带的底 —— 那才是色带的来源）。③ 是**登记过的回退**，理由见下。
+   为什么必须走到 ③（一手数据）：歌词面底下垫的是**封面取色的岛底**（与主题无关，可能是任意明暗），
+   而主题令牌只保证"对着自己的页面底"够读。黄昏是最刺眼的一例：黄昏是"亮底主题"（`--page-bg` 浅、`--ink` 深），
+   可黄昏档的岛底实测是**深海蓝 rgb(54,54,89)**（暗）⇒ 深的字色压在暗画上，描边只够把笔画"描出来"，
+   整行仍读不清（改前实测 1.05~1.16:1）。所以给每颗控件自己一层**82% 的 `--page-bg`**：
+   它是"控件自己的底"（不是整条横带），压在画上是一颗颗胶囊，不会连成一条带。 */
+#stage[data-display="folia"][data-folia-view="island"] .music-topnav button:not([aria-pressed="true"]),
+#stage[data-display="folia"][data-folia-view="island"] .music-topnav button:not([aria-pressed="true"]) span {
+  color: var(--ink);
+  opacity: 1;
+}
+#stage[data-display="folia"][data-folia-view="island"] .music-topnav button {
+  background: color-mix(in srgb, var(--page-bg) 82%, transparent);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+/* ② 描边：与字色相反的一端 ⇒ 压在亮画或暗画上都把笔画托住。 */
+#stage[data-display="folia"][data-folia-view="island"] .music-topnav button,
+#stage[data-display="folia"][data-folia-view="island"] .music-topnav button span,
+#stage[data-display="folia"][data-folia-view="island"] .theme-switch button,
+#stage[data-display="folia"][data-folia-view="island"] .theme-switch button span {
+  text-shadow:
+    0 0 2px var(--page-bg),
+    0 0 4px var(--page-bg);
+}
+/* 按下态的胶囊照旧实底（去底只去"容器"那一层）：`--ink` 实底 + `--surface` 字是既有规则，
+   这里只把它的**边界**画清楚一点，免得实底和画面糊在一起认不出是按下态。 */
+#stage[data-display="folia"][data-folia-view="island"] .theme-switch button[aria-pressed="true"],
+#stage[data-display="folia"][data-folia-view="island"] .mode-switch button[aria-pressed="true"] {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface) 38%, transparent);
+}
+/* R196（Q72 终章）：**封面墙也放开安全区**（与 R184 那三档同一处置，但按**布局**而不是按档）。
+   一手量到的形状：撤掉垫层之后，墙那一屏在 **y≈69** 还有一条整幅宽的台阶（13 档 × 3 主题逐格一致：
+   暖昼 93.9 / 黄昏 197.8 / 深夜 219.3，位置都在 y=69）—— 那就是内容层那条 `margin-top: var(--folia-safe-top)`
+   的边：上面 71px 是（现在已经透明的）岛底、下面是海报列。用户要"封面墙整个铺满" ⇒ 把墙也摘出避让。
+   墙里压着导航带的只有海报（不是文字），与 R179 给那三档放行的理由同一条。 */
+#stage[data-display="folia"][data-mode="detail"][data-folia-layout="lattice"] #folia-island > :first-child {
+  margin-top: 0;
+  height: 100%;
+}
+/* R200（Q72 真终章）：**岛视图（歌词面 + 封面墙）下内容层恒铺满** —— "导航行下那道色相交界带"的根因。
+   一手复现（r200 探针，dataset.mode 置 archive + lumiere）：内容层被上面那条
+   `margin-top: var(--folia-safe-top)` 推下 —— archive 态实测 83px（header 在档案态更高）——
+   y=0~83 露出的是"岛之下的东西"（R196 撤垫层后 = 3D 场景 / 页面底；night 实测 0,3,13 蓝黑），
+   与 y≥83 的绘光画面（暖调）在导航行底缘接成一条色相交界带。
+   为什么 R184（按档三组）与 R196（按布局）没挡住：那两条都挂在 `[data-mode="detail"]` 上，
+   而**歌词面/封面墙可以直接在 archive 态出现**（F4 的在线曲目路径；`L` 键只切 displayMode、不碰 data-mode，
+   R117 为同一件事踩过一次）⇒ archive 下两组放开规则全部失效、避让照旧。
+   R193 已定性"导航带压在画上是设计"（R179 避让的原始顾虑被推翻），Q72 终审"无论歌词页还是封面墙，
+   都要整个铺满屏幕" ⇒ 岛视图里避让**整体退场**（不再按档/按布局枚举；上面两组规则被本条涵盖，
+   保留作历史登记）。overflow 不动（沿用上面那条 `hidden`；pendolo 的 `visible` 特例特异性更高、照旧生效）。 */
+#stage[data-display="folia"][data-folia-view="island"] #folia-island > :first-child {
+  margin-top: 0;
+  height: 100%;
+}
+/* R20：岛为主视图时，自研歌词面整体隐藏，只留悬浮控制条子树（传输控件不能跟着消失）。 */
+#stage[data-folia-view="island"] #lyric-stage > :not(.folia-controls) {
+  display: none;
+}
+/* F4：在线曲目没有"打开专辑"这一步，歌词面是直接从档案架接管画面的。
+   此时底部那排架子读数（ALBUM/SELECT 计数、两轴步进器、按键提示）还亮着，
+   会和岛自己的悬浮控制条挤在同一行（真机截图 57 看到的正是这个）——歌词面接管时让它们。
+   只作用于 archive：detail 里这些本来就被详情层接管，不该顺手改那边的观感。 */
+#stage[data-folia-view="island"][data-mode="archive"] .music-navigation,
+#stage[data-folia-view="island"][data-mode="archive"] .music-keyhint {
+  opacity: 0;
+  pointer-events: none;
+}
+/* F1（R63）：classic 系（classic + 三个 pixi 视觉模式）里放行两棵子树——
+   `.lyric-plain` 是非同步歌词（ID3 USLT）的段落显示，岛自己只渲染带时间轴的行，
+   0 行时不放行就是一片空白（5.5 定案 afa24b9 在第一期架构迁移时丢的行为）；
+   `.lyric-source` 是歌词来源徽标，也是第四期"在线结果必须标明来源"的唯一可见载体。
+   封面墙不放行：墙内歌词画在展开卡的 pixi 画布上，宿主再浮一层满幅文字会压住海报。 */
+#stage[data-folia-view="island"][data-folia-layout="classic"] #lyric-stage > .lyric-plain {
+  display: flex;
+}
+#stage[data-folia-view="island"][data-folia-layout="classic"] #lyric-stage > .lyric-source {
+  display: block;
+  /* 实测：徽标按 lyric-stage.css 的 bottom:84px 落在 y 1064..1085，
+     而岛内悬浮控制条占 y 1083..1129 —— 压边 2px，岛里抬到控制条上方留 ~47px 余量。 */
+  bottom: 112px;
+  /* 岛内当前行与上游字幕都在**底部居中**，居中的徽标会压在它们上面
+     （27-online-d-online-steady-2.png 实测：徽标盖住"波打つ夕立のプール"那行）。
+     岛里改挂左侧：既保住"在线结果必须标明来源"的可见载体，又不跟上游字幕抢同一条基线。 */
+  left: 24px;
+  transform: none;
+}
+/* R144：入口按钮跟着徽标走同一条纪律——classic 系放行、封面墙不放行（墙里歌词画在 pixi 画布上）。
+   位置挂在徽标下面：徽标 bottom:112、自身高 21 ⇒ 占 [112,133]；入口高 30 ⇒ bottom 必须 ≤ 112−30−6，
+   第一版给 84 实测与徽标叠压 2px（截图上是一行字压着另一行）。
+   第一版给 84 实测与徽标叠压 2px（截图上是一行字压着另一行）。
+   R189：徽标那条线（112）**一个字没动**；入口再让 8px（76 → 68）把两者间距拉开
+   —— 徽标改成纯文字之后自身变矮，同一条线上两颗东西会显得更贴。 */
+#stage[data-folia-view="island"][data-folia-layout="classic"] #lyric-stage > .lyric-match-entry {
+  display: inline-block;
+  bottom: 68px;
+  left: 24px;
+  transform: none;
+}
+/* R63 补：段落放行后，岛自己的"等待音乐"空态占位层（满幅居中）会压在段落正中 —— 截图才发现的缺陷。
+   用显式 data 钩子而不是上游工具类来定位它：上游改类名不会让这条规则静默失效，且能被断言钉住。 */
+#stage[data-folia-view="island"][data-folia-layout="classic"]:has(#lyric-stage.has-plain) .folia-island [data-lyric-empty] {
+  display: none;
+}
+/* 看板 6378d44 第 3 条（夜间批 三）· 无词态的音符跳动在岛挂载时也要看得见。
+   一手实测（临时实例，本地无词 vs 在线无词两遍对照）：两种曲目**都走到了 `showPulse()`**
+   （`rhineMusic.lyrics().pulsing === true`、`.note-pulse` 在 DOM 里、`data-tier="basic"`），
+   差别不在判据——被挡的是显示层：R20 那条"岛里只放行控制条"把整棵子树藏了，
+   屏幕上只剩岛自己那句"等待音乐"。所以这里放行 `.note-pulse`，**复用既有实现，不新造第二套**。
+   封面墙不放行（与 `.lyric-plain` 同一条边界：墙的词画在展开卡的画布里，宿主再浮一层会压住海报）。 */
+#stage[data-folia-view="island"][data-folia-layout="classic"] #lyric-stage > .note-pulse {
+  display: flex;
+}
+/* 音符在跳的时候，岛那句"等待音乐"就该让位（同一块画面里两样东西叠着，R63 为段落踩过一次）。 */
+#stage[data-folia-view="island"][data-folia-layout="classic"]:has(#lyric-stage .note-pulse) .folia-island [data-lyric-empty] {
+  display: none;
+}
+
+/* R33（第二期）：封面墙切换键。文案是"点下去会变成什么"，高亮表示当前已在封面墙。 */
+.folia-btn-layout[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--folia-accent, var(--accent)) 60%, var(--line));
+  color: var(--folia-accent, var(--accent));
+}
+/* R126（方案 A）：墙上展开卡的「重取封面」。方格、圆角、悬停框都沿用移植件那条
+   `.lattice-chrome button`（不另起一套尺寸），这里只补一件：与左右两颗图标按钮同一个静息浓度。 */
+.lattice-chrome .lattice-cover-retry {
+  opacity: 0.65;
+}
+
+/* —— 8. R202 · 歌词面 / 封面墙的"背景模糊层" ——
+   用户原话：打开歌词界面或封面墙时，背后的画面被模糊掉（相当于垫一张可调模糊程度的透明图）；
+   并支持把"当前播放曲目的封面"作为这层模糊图的来源（封面 → 放大 → 高斯模糊 → 低透明度）。
+   层的位置：`#three-scene` 之后、（z-index 1 的）`.music-vignette` 之上、岛（z-index 3）之下
+   ⇒ 它垫在画面之下：`underlay` 档 `backdrop-filter` 模糊的正是它后面已画好的东西；
+   `cover` 档那张放大封面也压在三维之上、岛画面之下。
+   只在岛视图（歌词面 / 封面墙）里显形：其余视图 `#folia-backdrop` 不在（宿主只在岛视图里 update）。
+   三条红线（同源地址 / 封面预缩 / 一帧一更）在 `folia-host/backdrop.ts` 里，CSS 这一层只管几何与合成。 */
+#folia-backdrop {
+  position: absolute;
+  inset: -8%; /* 外扩 8%：blur 会把边缘像素与透明区混合，不外扩会露出一圈发黑的边（与 .lyric-backdrop 同因） */
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 520ms ease;
+}
+#folia-backdrop[data-backdrop-source="cover"],
+#folia-backdrop[data-backdrop-source="underlay"] {
+  opacity: 1;
+}
+/* 只在岛视图（歌词面 / 封面墙）里显形。判据是"岛视图在不在"（data-folia-view），
+   **不是**"显示模式是不是歌词"（data-display）：「档案架 + 歌词模式」（点了歌词模式、还没打开专辑）
+   这个组合里宿主一改主题或背景模糊参数就会 create 这一层，按 displayMode 判会把它显到档案架上
+   （盖掉三维专辑架，R202-F1，验收侧真机截图在案）。离开岛视图时宿主不再 update，
+   这一格同时把残留状态压掉。 */
+#stage:not([data-folia-view="island"]) #folia-backdrop {
+  display: none;
+}
+#folia-backdrop img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.08); /* 放大铺满，blur 后不留边 */
+  /* 切歌时交叉淡入淡出（不闪跳）：opacity 由 JS 逐张置 0/1，CSS 给过渡。 */
+  transition: opacity 420ms ease;
+}
+/* R202-F4（用户实报："背景的文字也模糊"，指右侧那一整块专辑信息）：
+   岛视图里档案信息块（`.album-callout`：MUSIC ARCHIVE ／ 流派、ALBUM 001、标题、歌手、年份时长、打开专辑）
+   此刻还浮在模糊层之上、文字是清楚的。让**它**吃同一格模糊半径（`--folia-backdrop-blur-px` 由 backdrop.ts 写，
+   与模糊层同一格参数、同一道门）：关 / 半径 0 / 离开岛视图 ⇒ 属性缺席 ⇒ `var()` 回退 `0px` ⇒ 一个字都不变。
+   只糊这一块 —— 顶栏与悬浮控制条是"浮在画面上"的菜单（Q72），不跟着糊。 */
+#stage[data-folia-view="island"] .album-callout {
+  filter: blur(var(--folia-backdrop-blur-px, 0px));
+}
+/* 减弱动效：模糊层静态化由全局开关覆盖 —— `.music-app.reduce-motion *`（music.css）把 .music-app 下
+   一切 transition/animation 压到 0.001s（真机核过：0.52s / 0.42s → 0.001s）。
+   这里不再挂按 `.is-reduced` 的规则：那个类挂在 `#lyric-stage` 上、不在 `#stage` 上，是条死规则（R202-F2）。 */
+@media (prefers-reduced-motion: reduce) {
+  #folia-backdrop,
+  #folia-backdrop img {
+    transition: none;
+  }
+}
+
+/* —— 9. R203 · `?wallpaper=1` 的 surface：只挂岛，播放器外壳常驻隐藏 ——
+   **为什么必须有这一段**（run log §0.4 逐条判定的结论）：上面那组隐藏规则挂在
+   `[data-display="folia"][data-mode="detail"]` 上，而这一档是**新载入的页面、从没走过"打开专辑"那一步**
+   ⇒ `data-mode` 是 `archive` ⇒ 那一组一条都不命中。改那些 `[data-mode]` 条件会动默认态（违判据②），
+   所以隐藏规则按 `data-surface` 这一段单独写：**值只在 music-app 初始化那一次落到属性上**
+   （`if (isWallpaperSurface) stage.dataset.surface = "wallpaper"`），宿主侧不新造 JS 隐藏状态机。
+   不带参数时这个属性**缺席** ⇒ 下面每一条都匹配不上 ⇒ 默认态逐字节不变（判据②）。
+   清单来自 run log §0.3 那张表（一手逐行读 `stage.innerHTML` 得出的分类，不是猜的）。 */
+#stage[data-surface="wallpaper"] .music-header,
+/* 顶栏整条带：品牌 / 四个导航按钮 / 主题胶囊 / 模式胶囊 / 设置按钮 / 迷你传输区（含播放范围徽标）——
+   导航与播放器外壳，这一档不留。 */
+#stage[data-surface="wallpaper"] .music-vignette,
+/* 那两条 `--veil` 渐变垫的就是"导航带 + 底栏"；两条带都隐藏了，垫子留着只会压住画面上下缘（R195 同一理由）。 */
+#stage[data-surface="wallpaper"] #music-browse,
+/* 档案架文字层整块：专辑信息块（含「打开专辑 ↗」）、计数、两轴步进器、按键提示。
+   与 R202-F4 那条 `.album-callout { filter: blur(...) }` 并存：`display:none` 之后滤镜无意义，不冲突。 */
+#stage[data-surface="wallpaper"] #music-detail,
+#stage[data-surface="wallpaper"] .music-progress,
+/* 常驻进度行。R117 那条 `:has(#lyric-stage .folia-controls)` 让位规则**一个字不动**（Task 0 §0.4：
+   两处指向同一个"不显示"、结果一致，属重叠而非第二套逻辑）。 */
+#stage[data-surface="wallpaper"] .music-bottomline,
+#stage[data-surface="wallpaper"] #music-panel-root,
+/* 所有面板都在这一格里（音乐库 / 搜索 / 歌单 / 收藏 / 设置 / 歌词匹配 / 音乐人组）——
+   面板 = 会改用户数据与出网的入口，按任务口径全部留在主窗口。 */
+#stage[data-surface="wallpaper"] #music-toast,
+#stage[data-surface="wallpaper"] #music-empty,
+/* 空态那两块按钮（设置音乐文件夹 / 先查看演示封面）都开面板 ⇒ 不留；"没有东西可画"这句话由下面的状态行说。 */
+#stage[data-surface="wallpaper"] #music-loading,
+/* 开场载入层：`start()` 成功即 `.remove()`；失败时它写的是"检查音乐库"那颗按钮（开面板）。
+   这一档的"正在载入 / 后端未就绪 / 岛没挂上"一律走 `#library-status` 那一行（Task 4：一处作者、一句话说清）。 */
+#stage[data-surface="wallpaper"] .folia-controls .folia-btn-exit {
+  /* 悬浮条末那颗「演出」（`data-action="mode-rhine"`）。这一档里 `data-display` 被钉成 folia
+     （R200 铺满 / R117 让位 / R195 去底都挂在那格上），点它只会写偏好、画面一动不动
+     ⇒ 按 R121 那条判据"这次点击还有没有主人"，没有主人的按钮不留着骗人。 */
+  display: none;
+}
+/* 这一档唯一的可读状态行：**复用既有的 `#library-status`**（作者只有 `updateStatus()` 那一处，
+   不新造第二块状态 UI），只把它从"顶栏下面那一行"改挂到左下角并补 R195 那套可读性三步
+   （字色取 `--ink` / 描边取相反那一端 `--page-bg` / 控件自带 82% 同族底——压在任意明暗的画上都能读）。
+   `label` 为空时宿主本来就 `.hidden = true` ⇒ 画面正常时这一行不出现，不多占一块屏幕。 */
+#stage[data-surface="wallpaper"] .library-status {
+  top: auto;
+  bottom: 28px;
+  left: 28px;
+  z-index: 6; /* 岛是 3、模糊层是 2：状态行要浮在画面之上才读得到（与顶栏那条带同一档） */
+  font-size: 12px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--page-bg) 82%, transparent);
+  border-radius: 999px;
+  padding: 5px 12px;
+  text-shadow:
+    0 0 2px var(--page-bg),
+    0 0 4px var(--page-bg);
+}
+
+/* —— 10. R203 · Task 3 的第三路退出：右下角那颗角落热点 ——
+   三路（`Esc` / 双击 / 角落热点）在 `folia-host/surface-exit.ts` 里**共用同一个 `exit()`**，
+   这颗元素也由那一个模块挂（宿主只调 `createSurfaceExit(...).activate()`，不在两处各造一颗）。
+   为什么是"热点"而不是一颗常驻实心按钮：这一档是挂在墙上的画面，实心按钮会一直压着画；
+   为什么不干脆隐形：退不出去就是把人关在里面（方案 §四.5 把退出通道写成安全要求），
+   所以静息态给 0.24 的浓度——看得见、不抢画面；指针进角或键盘 Tab 到它（真 `<button>`）就升到 1。
+   位置挑右下角：左下角是状态行、底部正中是悬浮控制条。 */
+#stage[data-surface="wallpaper"] .folia-surface-exit {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 6;
+  padding: 6px 14px;
+  border: 1px solid color-mix(in srgb, var(--ink) 26%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--page-bg) 82%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  opacity: 0.24;
+  transition:
+    opacity 240ms ease,
+    background-color 600ms linear,
+    color 600ms linear;
+  text-shadow:
+    0 0 2px var(--page-bg),
+    0 0 4px var(--page-bg);
+}
+#stage[data-surface="wallpaper"] .folia-surface-exit:hover,
+#stage[data-surface="wallpaper"] .folia-surface-exit:focus-visible {
+  opacity: 1;
+}
+/* 悬浮控制条淡出（`data-chrome="off"`，这块屏最干净的一态）时热点跟着收：
+   两者同属"没人动它时别挡画"，由同一个 `data-chrome` 驱动，不开第二个计时器（R202 那条纪律）。
+   收得起的理由是**另外两路不依赖它**：`Esc` 与双击都挂在元素上、不吃可见性。
+   配套：`music-app.ts` 的 `chromeReveal.keepOpen()` 把这颗也加进"悬停不收起"那一格，
+   否则"慢慢把指针移到角上准备退出"会让它自己淡掉（三条退路里少一条肉眼可见的）。 */
+#stage[data-surface="wallpaper"][data-chrome="off"] .folia-surface-exit {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* —— 11. R206 ③ · 「沉浸全屏」这一档：同一组外壳让位规则，第二个**值**，不是第二套机制 ——
+   上面第 9 段是 `data-surface="wallpaper"`（壳的真壁纸那一档）。这一档（歌词面右下角那颗按钮）
+   要隐的是**同一批东西**，所以按同一个属性、另一个值写：`data-surface="immersive"`。
+   两条讲究：
+    · 每一格都点名写、不用 `:is()` 合并 —— 合并会让第 9 段那条"逐格点名"的判据失去抓手，
+      也让人看不清"这一档到底隐了哪几块"（少一条就是漏隐，R203 判据⑤ 的原话）。
+    · 与第 9 段**唯一**的差别是 `.folia-controls .folia-btn-exit`（悬浮条末那颗「演出」）：
+      壁纸那一档里 `data-display` 被钉成 folia，点它只会写偏好、画面一动不动 ⇒ 不留着骗人；
+      这一档 `data-display` 是活的，那颗按钮有主人 ⇒ 不隐。自检按这两条各钉一条。 */
+#stage[data-surface="immersive"] .music-header,
+#stage[data-surface="immersive"] .music-vignette,
+#stage[data-surface="immersive"] #music-browse,
+#stage[data-surface="immersive"] #music-detail,
+#stage[data-surface="immersive"] .music-progress,
+#stage[data-surface="immersive"] .music-bottomline,
+#stage[data-surface="immersive"] #music-panel-root,
+#stage[data-surface="immersive"] #music-toast,
+#stage[data-surface="immersive"] #music-empty,
+#stage[data-surface="immersive"] #music-loading {
+  display: none;
+}
+
+/* 那颗按钮本体：歌词面在场就出现（`data-display="folia"`），壁纸那一档让位给已有的角落热点。
+   开着沉浸时**必须一直在**（第二条规则）—— 不然一沉浸就把自己的出口隐掉了。
+   位置与第 10 段那颗错开不了：两者永不同时出现（壁纸档里这颗被隐）。 */
+#stage[data-display="folia"] .folia-immersive-toggle,
+#stage[data-surface="immersive"] .folia-immersive-toggle {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 6;
+  padding: 6px 14px;
+  border: 1px solid color-mix(in srgb, var(--ink) 26%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--page-bg) 82%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  opacity: 0.34;
+  transition:
+    opacity 240ms ease,
+    background-color 600ms linear,
+    color 600ms linear;
+  text-shadow:
+    0 0 2px var(--page-bg),
+    0 0 4px var(--page-bg);
+}
+#stage[data-display="folia"] .folia-immersive-toggle:hover,
+#stage[data-display="folia"] .folia-immersive-toggle:focus-visible,
+#stage[data-surface="immersive"] .folia-immersive-toggle:hover,
+#stage[data-surface="immersive"] .folia-immersive-toggle:focus-visible {
+  opacity: 1;
+}
+/* 沉浸开着的时候这颗是**唯一的出口之一**，不许跟着外壳淡出（静息态也保持可见）。 */
+#stage[data-surface="immersive"][data-chrome="off"] .folia-immersive-toggle {
+  opacity: 0.72;
+  pointer-events: auto;
+}
+/* 壁纸那一档不挂这颗：那一档已经有自己的角落热点与三条退出，两颗并排只会互相挡。 */
+#stage[data-surface="wallpaper"] .folia-immersive-toggle {
+  display: none;
+}

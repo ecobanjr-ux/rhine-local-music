@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<QrcInfos>
+<QrcHeadInfo SaveTime="205" Version="100"/>
+<LyricInfo LyricCount="1">
+<Lyric_1 LyricType="1" LyricContent="[ti:SYNTHETIC LINE LEVEL]
+[ar:SYNTHETIC ARTIST]
+[al:SYNTHETIC ALBUM]
+[offset:0]
+[00:01.00]ALPHA BETA GAMMA
+[00:05.50]DELTA EPSILON ZETA
+[00:10.20]ETA THETA IOTA
+[00:15.00]KAPPA LAMBDA MU
+[00:20.40]NU XI OMICRON
+[00:26.00]PI RHO SIGMA"/>
+</LyricInfo>
+</QrcInfos>

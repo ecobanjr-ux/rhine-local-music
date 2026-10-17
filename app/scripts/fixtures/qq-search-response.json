@@ -1,0 +1,65 @@
+{
+  "_说明": "QQ 搜索响应的结构 fixture：只保留在线匹配消费的字段（id / mid / title / interval / singer[].name / album.name），字段名与一手响应一致（探针 P10）。值是公开的歌曲元数据事实，不含任何歌词正文。",
+  "item_songs": {
+    "japanese-exact": [
+      {
+        "id": 212722243,
+        "mid": "003xLPJN4VdhHQ",
+        "title": "さよなら夏の日 (道别的夏天)",
+        "interval": 267,
+        "singer": [{ "id": 4892, "name": "山下達郎" }],
+        "album": { "id": 1, "name": "COME ALONG 3" }
+      }
+    ],
+    "japanese-cross-album": [
+      {
+        "id": 282674181,
+        "mid": "0040lwSm2IxBpc",
+        "title": "YOUR EYES",
+        "interval": 198,
+        "singer": [{ "id": 4892, "name": "山下達郎" }],
+        "album": { "id": 2, "name": "LOVELAND,ISLAND" }
+      }
+    ],
+    "duration-off-6s": [
+      {
+        "id": 203523050,
+        "mid": "0016PPAd3yaXBT",
+        "title": "YOUR EYES",
+        "interval": 192,
+        "singer": [{ "id": 4892, "name": "山下達郎" }],
+        "album": { "id": 3, "name": "FOR YOU" }
+      }
+    ],
+    "wrong-artist": [
+      {
+        "id": 255906426,
+        "mid": "004bKuye2h3ay0",
+        "title": "Your Eyes",
+        "interval": 191,
+        "singer": [{ "id": 1, "name": "竹内まりや" }],
+        "album": { "id": 4, "name": "TRAD" }
+      }
+    ],
+    "english-tags": [
+      {
+        "id": 496054946,
+        "mid": "001auUcH4WQs2V",
+        "title": "恋人",
+        "interval": 275,
+        "singer": [{ "id": 2, "name": "李荣浩" }],
+        "album": { "id": 5, "name": "黑马" }
+      }
+    ],
+    "traditional-chinese": [
+      {
+        "id": 97773,
+        "mid": "000FpRau1wBBCb",
+        "title": "晴天",
+        "interval": 269,
+        "singer": [{ "id": 3, "name": "周杰伦" }],
+        "album": { "id": 6, "name": "叶惠美" }
+      }
+    ]
+  }
+}

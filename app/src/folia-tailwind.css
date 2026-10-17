@@ -1,0 +1,31 @@
+/* Folia 岛的 Tailwind v4 层（R21/R22，移植台账）。
+   上游整站 `@import "tailwindcss"`（含 preflight 全局重置）；本仓不能把 preflight
+   放进全局（会重置 Rhine 的 h1/button/margin 等），故只引 theme + utilities 两层，
+   preflight 里岛布局真正依赖的盒模型子集按作用域补在 .folia-island 内（R22）。
+   @source 把内容扫描限定在移植区，避免把 Rhine 的类名也生成进 utilities。 */
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+@source "./folia";
+
+/* R22：preflight 的岛内作用域子集（盒模型 / 边框归零 / 可替换元素 display）。 */
+.folia-island *,
+.folia-island *::before,
+.folia-island *::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  margin: 0;
+  padding: 0;
+}
+.folia-island button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+.folia-island img,
+.folia-island svg,
+.folia-island canvas,
+.folia-island video {
+  display: block;
+  vertical-align: middle;
+}

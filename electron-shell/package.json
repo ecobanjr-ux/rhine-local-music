@@ -1,0 +1,15 @@
+{
+  "name": "local-music-shell",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "R204 Electron 壳最小件（独立目录，整目录删除即回到纯浏览器形态）",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "43.7.9"
+  }
+}

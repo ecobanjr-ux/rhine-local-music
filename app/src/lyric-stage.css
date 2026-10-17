@@ -1,0 +1,343 @@
+/* Top-bar playback view switch (演出 / 歌词), kept visually adjacent to the theme pills. */
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--veil);
+}
+.mode-switch button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+.mode-switch button[aria-pressed="true"] {
+  background: var(--panel);
+  color: var(--ink);
+}
+/* Folia-mode lyric surface. Colours come from the music.css tokens so the same
+   DOM works under 暖昼 / 深夜 (and later dusk) without per-theme rules. */
+.lyric-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 12vh 6vw 14vh;
+  color: var(--folia-primary, var(--ink));
+  pointer-events: none;
+  /* 换封面时派生色整体渐变：注册 @property 会吃掉 var() 的令牌回退分支（见 lyric-stage.ts），
+     所以过渡放在消费端属性上。 */
+  transition: color 600ms linear;
+}
+.lyric-stage[hidden] {
+  display: none;
+}
+/* 视图外壳（隐藏 Rhine 面板、封面模糊背景、暗场）在 lyric-folia-chrome.css；
+   本文件只管歌词本身的排版与动效。 */
+.lyric-lines {
+  position: relative;
+  width: min(900px, 100%);
+  max-height: 72vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  text-align: center;
+  mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+}
+/* —— 歌词排版与动效（对齐 folia 原版设计语言，见 memory/folia-learnings.md 第 6 节）——
+   三处刻意的实现选择：
+   ① 大小变化走独立的 scale 属性而不是 font-size —— 改字号会重排整列，逐帧成本不可控；
+   ② 呼吸浮动走独立的 translate 属性 —— 它与入场位移各自独立、自动合成，
+      不必为"动画覆盖过渡"写特例；
+   ③ 发光用双层 text-shadow（accent 层 + 主体层）等效实现，不额外建 glow DOM 层。
+   四个 --i-* 由强度档位（calm/normal/chaotic）写入，这里给的都是 normal 档默认值。 */
+.lyric-line {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 46px);
+  font-weight: 600;
+  line-height: 1.42;
+  letter-spacing: 0.01em;
+  color: var(--folia-secondary, var(--muted));
+  opacity: 0.18;
+  /* 静止态清晰可读：模糊只属于入场那一瞬（见 lyric-enter），邻居行靠透明度分层。
+     大小差仍要保留（"当前行更大"），但走 scale 过渡而不是 blur 副作用。 */
+  scale: calc(1 - var(--i-enter-scale, 0.14));
+  transition:
+    opacity 520ms ease,
+    color 520ms linear,
+    scale 620ms cubic-bezier(0.22, 1.32, 0.36, 1);
+}
+.lyric-line.is-active {
+  color: var(--folia-primary, var(--ink));
+  opacity: 1;
+  scale: 1;
+  text-shadow:
+    0 0 22px color-mix(in srgb, var(--folia-accent, var(--accent)) 42%, transparent),
+    0 0 64px color-mix(in srgb, var(--folia-primary, var(--ink)) 26%, transparent);
+  /* 入场与呼吸排在同一条 shorthand 里，靠 delay 错开而不是靠谁覆盖谁：
+     前 620ms 只有入场在跑（呼吸还在 delay 里，delay 期间不产生任何样式），
+     620ms 后入场结束且不留填充，translate 才交给呼吸。
+     两条各管各的属性：入场只管 blur/位移/淡入，scale 由上面的过渡承担，互不打架。 */
+  animation:
+    lyric-enter 620ms cubic-bezier(0.22, 1.32, 0.36, 1),
+    lyric-breathe 4.2s ease-in-out 620ms infinite;
+}
+/* 行入场：纵向位移 + blur(10px)→0 + 淡入，走 spring 曲线；
+   幅度三个 --i-* 由强度档位（calm/normal/chaotic）写入，这里给的是 normal 档默认值。 */
+@keyframes lyric-enter {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    translate: 0 calc(var(--i-enter-y, 0.42) * 1em);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    translate: 0 0;
+  }
+}
+/* 行尾淡出：离当前行越远越暗。data-distance 只在换行时更新 ±3 窗口，不随帧遍历全列表。 */
+.lyric-line[data-distance="1"] { opacity: 0.52; }
+.lyric-line[data-distance="2"] { opacity: 0.36; }
+.lyric-line[data-distance="3"] { opacity: 0.22; }
+@keyframes lyric-breathe {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 calc(var(--i-breathe, 5) * -1px); }
+}
+.lyric-line.is-interlude {
+  letter-spacing: 0.42em;
+  opacity: 0.3;
+}
+.lyric-word {
+  display: inline-block;
+  opacity: 0.55;
+  transition:
+    opacity 220ms linear,
+    color 220ms linear,
+    scale 320ms cubic-bezier(0.22, 1.32, 0.36, 1),
+    text-shadow 260ms ease;
+  /* 逐字入场允许轻微 stagger。--i 在 build 时按 wordIndex % 12 封顶：
+     46px 大字一行可能 20+ 字，不封顶会让行尾比音频慢半秒。 */
+  transition-delay: calc(var(--i, 0) * var(--i-stagger, 26) * 1ms);
+}
+.lyric-word.is-word-passed {
+  opacity: 0.92;
+}
+.lyric-word.is-word-active {
+  color: var(--folia-accent, var(--accent));
+  opacity: 1;
+  scale: 1.08;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--folia-accent, var(--accent)) 58%, transparent);
+}
+/* R189（任务四）：来源徽标与匹配入口原先长得一模一样（同边框、同底色、同字号），并排就"糊成一团"。
+   按**这两个东西各自是什么**分开层级：
+     · 徽标是**状态说明** ⇒ 去边框、去胶囊底，只留一个小圆点 + 纯文字；
+     · 入口是**可点动作** ⇒ 保留胶囊，底色改成不透明的 `--folia-back`、文字吃 `--folia-primary`
+       （主题桥对它有 4.5 下限，见 folia-host/theme-bridge.ts），强调色退到描边与圆点上 ——
+       亮底上"橙字压在浅底"正是 R181 那一族（实测 day 下 accent 对浅底只有 3.8）。
+   位置：徽标那条线一个字没动（R144 量过）；入口下移 8px 把两者间距从 ~6px 拉到 ~14px。 */
+.lyric-source {
+  position: absolute;
+  bottom: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--folia-primary, var(--ink));
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+/* 小圆点跟强调色走：它是"这是哪一档"的视觉锚，不做文字对比度的责任。 */
+.lyric-source::before {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--folia-accent, var(--accent));
+}
+/* R144：歌词匹配入口。与来源徽标同一条竖线、**在它下面一行**，两条位置都拿真机 rect 量过
+   （第一版写 bottom:58 与徽标 bottom:84 差 26px，而入口自身高 30px ⇒ 实测叠压 4px，
+   `getBoundingClientRect` 判得出来、肉眼看是"两行挤成一团"）。留 8px 以上间距。
+   R189：间距要求抬到 14px 上下 ⇒ 徽标不动、入口再让 8px。 */
+.lyric-match-entry {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--folia-accent, var(--accent)) 58%, var(--line));
+  border-radius: 999px;
+  background: var(--folia-back, var(--page-bg));
+  /* `.text-button` 那条 `color: var(--accent) !important` 是宿主通用规则（music.css:1015），
+     要把它让给"可读优先"必须带 !important —— 靠特异度压不过 !important。 */
+  color: var(--folia-primary, var(--ink)) !important;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  /* R169（验收侧修复，2026-10-10）：舞台那一层 `.lyric-stage` 故意是 `pointer-events: none` 的
+     覆盖层（不许挡住 3D 与岛），所以里面每一颗可交互元素都必须自己把事件打开
+     （同族先例：lyric-folia-chrome.css 的两处）。R144 做这颗入口时漏了这一句 ⇒ 它从上线起
+     就"看得见、点不动"：真机取证 = 计算样式 none、按钮中心命中的是岛容器；补上后命中回到
+     按钮自身（层级本来就是对的：舞台 z-index 4 > 岛 3），面板当场打开。
+     判据在 `check-music-online-ui.mjs` 那条 R169。 */
+  pointer-events: auto;
+}
+/* 系统级 prefers-reduced-motion 与应用内"减弱动效"开关都要生效：后者是 JS 状态，
+   媒体查询看不到它，所以由 applyTime 在舞台根节点上同步 is-reduced 类。
+   降级目标是"退化为淡入淡出"：位移、缩放、模糊、发光、呼吸、stagger 全部归零，
+   只留 opacity 与 color 两条过渡。强度三档在这里一并失效（变量不再被消费）。
+   选择器写成三级链是为了压过 .lyric-line.is-active / .lyric-word.is-word-active
+   这两个双类规则——只写 .lyric-line 会因特异度打平而输给出场顺序之外的改动。 */
+@media (prefers-reduced-motion: reduce) {
+  .lyric-stage .lyric-lines .lyric-line,
+  .lyric-stage .lyric-lines .lyric-word {
+    transition-property: opacity, color;
+    transition-duration: 240ms;
+    transition-delay: 0ms;
+    translate: none;
+    scale: none;
+    filter: none;
+    text-shadow: none;
+    animation: none;
+  }
+}
+.lyric-stage.is-reduced .lyric-line,
+.lyric-stage.is-reduced .lyric-word {
+  transition-property: opacity, color;
+  transition-duration: 240ms;
+  transition-delay: 0ms;
+  translate: none;
+  scale: none;
+  filter: none;
+  text-shadow: none;
+  animation: none;
+}
+/* —— 无歌词曲目：音符跳动动画（不显示"无歌词"文字占位）—— */
+.note-pulse {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5em;
+  font-size: clamp(26px, 3.4vw, 46px);
+  line-height: 1;
+  color: var(--folia-secondary, var(--muted));
+}
+.note-pulse__note {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  opacity: 0.75;
+}
+/* 只给屏幕阅读器的说明文字：项目里没有全局 .visually-hidden 工具类，就地定义，
+   否则"这首曲目没有歌词"会作为大字显示出来，违背无歌词时不显示文字占位的要求。 */
+.note-pulse .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+/* off 档：静止，只有字形本身。 */
+.note-pulse[data-tier="off"] .note-pulse__note {
+  animation: none;
+  transform: none;
+}
+/* basic 档：等距错峰的循环跳动，与音频无关，任何环境都能跑。 */
+.note-pulse[data-tier="basic"] .note-pulse__note {
+  animation: note-bounce 1.15s ease-in-out infinite;
+}
+/* audio 档：**每颗音符吃自己那条频段**（`--l` 由 JS 每帧写），总电平 `--pulse-level` 只管整排透明度。
+   位移与缩放系数是 2026-10-09 调强的：从前位移只有 -0.5em、且六颗共用一个全频段平均值
+   （fftSize=512 时那个平均被两百多格近乎零的高频拖没，典型流行乐只剩 0.05~0.15）
+   ⇒ 实际位移 2~3 像素，肉眼看不出来。现在 -1.6em 起步、缩放系数翻倍，安静段也能看见起伏。 */
+.note-pulse[data-tier="audio"] .note-pulse__note {
+  animation: none;
+  transform: translateY(calc(var(--l, 0) * -1.6em)) scale(calc(1 + var(--l, 0) * (0.34 + 0.12 * var(--n, 0))));
+  opacity: calc(0.55 + var(--pulse-level, 0) * 0.45);
+}
+/* R133 频谱条档：16 根**半倍频程**条，与音符档互斥（同一层 DOM，靠 data-tier 换显示的那一套）。
+   为什么用 scaleY 而不是改 height：height 每帧都触发布局，scaleY 走合成层——同一排东西，
+   一个能把 60fps 跑住，一个跑不住。行程下限 0.08 不是 0：静音时留一格"还在工作"的痕迹，
+   否则整排消失与"这一档坏了"在画面上分不开。 */
+.note-pulse__bar {
+  display: none;
+}
+.note-pulse[data-tier="spectrum"] {
+  gap: 0.18em;
+}
+.note-pulse[data-tier="spectrum"] .note-pulse__note {
+  display: none;
+}
+.note-pulse[data-tier="spectrum"] .note-pulse__bar {
+  display: block;
+  flex: 0 0 auto;
+  width: 0.42em;
+  height: 1.6em;
+  border-radius: 2px 2px 0 0;
+  background: currentColor;
+  transform-origin: 50% 100%;
+  transform: scaleY(calc(0.08 + var(--l, 0) * 0.92));
+  opacity: calc(0.5 + var(--pulse-level, 0) * 0.5);
+}
+.note-pulse__note:nth-child(1) { --n: 0; animation-delay: 0s; }
+.note-pulse__note:nth-child(2) { --n: 1; animation-delay: 0.12s; }
+.note-pulse__note:nth-child(3) { --n: 2; animation-delay: 0.24s; }
+.note-pulse__note:nth-child(4) { --n: 3; animation-delay: 0.36s; }
+.note-pulse__note:nth-child(5) { --n: 4; animation-delay: 0.48s; }
+.note-pulse__note:nth-child(6) { --n: 5; animation-delay: 0.6s; }
+@keyframes note-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-0.34em) scale(1.08); }
+  70% { transform: translateY(0.05em) scale(0.97); }
+}
+/* 减弱动效下连 basic 的循环也停掉，只留静止字形。 */
+.lyric-stage.is-reduced .note-pulse__note {
+  animation: none;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .note-pulse__note {
+    animation: none;
+    transform: none;
+  }
+}
+/* 暂停播放时定格：装饰动画不该在音乐停了以后继续跳。 */
+.note-pulse.is-idle .note-pulse__note {
+  animation-play-state: paused;
+}
+/* 非同步歌词（ID3 USLT）：没有时间轴，按段落静态显示，不做逐行点亮。 */
+.lyric-plain {
+  width: min(760px, 100%);
+  max-height: 68vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  text-align: center;
+  font-size: clamp(14px, 1.35vw, 19px);
+  line-height: 1.65;
+  color: var(--folia-secondary, var(--muted));
+  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
+}
+.lyric-plain p {
+  margin: 0;
+}
